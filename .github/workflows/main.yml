@@ -1,11 +1,11 @@
-name: m2-actions-ihla
+name: m2-actions-test
 
 on: [push]
 
 jobs:
   magento2-build:
     runs-on: ubuntu-latest
-    name: 'm2 ihla & build'
+    name: 'm2 tests & build'
     services:
       mysql:
         image: docker://mysql:8.0
@@ -20,24 +20,24 @@ jobs:
         ports:
           - 9200:9200
         options: -e="discovery.type=single-node" -e "plugins.security.disabled=true"  -e "plugins.security.ssl.http.enabled=false" --health-cmd="curl http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=10
-      
+
     steps:
     - uses: actions/checkout@v4  
+
+    - name: "Update Composer to v2"
+      run: composer self-update --2
             
     - name: 'install fresh magento repo'
-      if: ${{false}}
+      if: (!cancelled())
       uses: MAD-I-T/magento-actions@v3.30
       env:
         COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
       with:
         process: 'create-project'
         magento_version: 2.4.7
-        #no_push: 1   ## add this arg to not push to the repo ideal for quick test on specific version
-        
         
     - name: 'install fresh pwa-studio project'
-      #if: (!cancelled())
-      if: ${{false}}
+      if: (!cancelled())
       uses: MAD-I-T/magento-actions@v3.30
       with:
         process: 'pwa-studio-install'
@@ -60,7 +60,6 @@ jobs:
         process: 'unit-test'
         testsuite: 'Magento_Unit_Tests_Other'
 
-        
     - name: 'launch magento2 unit test specific module i.e module-email'
       if: (!cancelled())
       uses: MAD-I-T/magento-actions@v3.30
@@ -69,10 +68,6 @@ jobs:
       with:
         process: 'unit-test'
         unit_test_subset_path: 'vendor/magento/module-email/Test/Unit'
-        #php: 8.1
-        #composer_version: 2
-        #opensearch: 1
-
 
     - name: 'launch magento2 static test'
       if: (!cancelled())
@@ -82,7 +77,6 @@ jobs:
       with:
         process: 'static-test'
         
-        
     - name: 'magento coding standard checker'
       if: (!cancelled())
       uses: MAD-I-T/magento-actions@v3.30
@@ -90,7 +84,7 @@ jobs:
         COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
       with:
         process: 'phpcs-test'
-        extension: 'magento/vendor/magento/module-email' # can be a custom value module in app/code/ dir e.g: Madit/Atos 
+        extension: 'magento/vendor/magento/module-email'
         severity: 10
         standard: 'Magento2'
         
@@ -134,9 +128,9 @@ jobs:
         exec_path: 'vendor/magento/module-email'
 
 
-   #### section to be activated, for zero downtime deployment on preprod and/or prod remove ${{false}}
+    #### section to be activated, for zero downtime deployment on preprod and/or prod remove ${{false}}
     - name: 'launch magento2 zero downtime deploy with no permission check'
-      if: ${{false}} #  if: steps.build.outcome == 'success'
+      if: ${{false}} # if: steps.build.outcome == 'success'
       uses: MAD-I-T/magento-actions@v3.30
       env:
         COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
@@ -167,41 +161,6 @@ jobs:
         WRITE_USE_SUDO: false
       with:
         process: 'cleanup-staging'
-        
-        
-    - name: 'start zero downtime deploy on production'
-      if: ${{false}} # if: steps.build.outcome == 'success'
-      uses: MAD-I-T/magento-actions@v3.30
-      env:
-        COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
-        BUCKET_COMMIT: bucket-commit-${{github.sha}}.tar.gz
-        MYSQL_ROOT_PASSWORD: magento
-        MYSQL_DATABASE: magento
-        HOST_DEPLOY_PATH: ${{secrets.PROD_HOST_DEPLOY_PATH}}
-        HOST_DEPLOY_PATH_BUCKET: ${{secrets.PROD_HOST_DEPLOY_PATH}}/bucket
-        SSH_PRIVATE_KEY: ${{secrets.PROD_SSH_PRIVATE_KEY}}
-        SSH_CONFIG: ${{secrets.PROD_SSH_CONFIG}}
-        WRITE_USE_SUDO: false
-      with:
-        process: 'deploy-prod'
-        deployer: 'no-permission-check'        
-        
-    - name: 'unlock php deployer if the deployment fails on production'
-      if: ${{false}} #if: failure() || cancelled()
-      uses: MAD-I-T/magento-actions@v3.30
-      env:
-        COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
-        BUCKET_COMMIT: bucket-commit-${{github.sha}}.tar.gz
-        MYSQL_ROOT_PASSWORD: magento
-        MYSQL_DATABASE: magento
-        HOST_DEPLOY_PATH: ${{secrets.PROD_HOST_DEPLOY_PATH}}
-        HOST_DEPLOY_PATH_BUCKET: ${{secrets.PROD_HOST_DEPLOY_PATH}}/bucket
-        SSH_PRIVATE_KEY: ${{secrets.PROD_SSH_PRIVATE_KEY}}
-        SSH_CONFIG: ${{secrets.PROD_SSH_CONFIG}}
-        WRITE_USE_SUDO: false
-      with:
-        process: 'cleanup-prod'
-
 
   magento2-integration-test:
     runs-on: ubuntu-latest
@@ -215,11 +174,6 @@ jobs:
         ports:
           - 3106:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
-      #elasticsearch:
-      #  image: docker://elasticsearch:7.17.0
-      #  ports:
-      #    - 9200:9200
-      #  options: -e="discovery.type=single-node" --health-cmd="curl http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=10
       rabbitmq:
         image: docker://rabbitmq:3.9-alpine
         env:
@@ -237,8 +191,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4  
       - name: 'install fresh magento repo'
-        #if: (!cancelled())
-        if: ${{false}}
+        if: (!cancelled())
         uses: MAD-I-T/magento-actions@v3.30
         env:
           COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
@@ -274,7 +227,3 @@ jobs:
           process: 'integration-test'
           integration_class: "./testsuite/Magento/MemoryUsageTest.php"
           integration_filter: "testAppReinitializationNoMemoryLeak"
-
-          
-
-  
